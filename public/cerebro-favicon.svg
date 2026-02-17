@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="none">
+  <!-- Dark background -->
+  <rect width="256" height="256" fill="#0A192F" rx="48"/>
+  
+  <!-- Glow effect -->
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="cyangradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#64FFDA;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00D9FF;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Bar chart bars representing data/analysis -->
+  <!-- Bar 1 (tall) -->
+  <rect x="50" y="90" width="28" height="90" fill="#64FFDA" filter="url(#glow)" opacity="0.9"/>
+  
+  <!-- Bar 2 (medium) -->
+  <rect x="100" y="110" width="28" height="70" fill="#00D9FF" filter="url(#glow)" opacity="0.85"/>
+  
+  <!-- Bar 3 (short) -->
+  <rect x="150" y="130" width="28" height="50" fill="#64FFDA" filter="url(#glow)" opacity="0.8"/>
+  
+  <!-- Brain/Network icon in corner -->
+  <g transform="translate(180, 50)" opacity="0.7">
+    <circle cx="8" cy="8" r="3" fill="#64FFDA"/>
+    <circle cx="2" cy="14" r="2" fill="#00D9FF"/>
+    <circle cx="14" cy="14" r="2" fill="#00D9FF"/>
+    <line x1="8" y1="8" x2="2" y2="14" stroke="#64FFDA" stroke-width="1" opacity="0.6"/>
+    <line x1="8" y1="8" x2="14" y2="14" stroke="#64FFDA" stroke-width="1" opacity="0.6"/>
+  </g>
+</svg>
