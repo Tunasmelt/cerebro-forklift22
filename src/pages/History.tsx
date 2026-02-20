@@ -1,59 +1,190 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Search, Calendar } from "lucide-react";
+import { Search, Calendar, Loader2, Download } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, ResearchResponse, SessionDetail } from "@/services/api";
 import ProgressRing from "@/components/Shared/ProgressRing";
 import SummaryModal from "@/components/Chat/SummaryModal";
-
-interface Session {
-  id: string;
-  topic: string;
-  lastActive: string;
-  completion: number;
-  tags: string[];
-  category: string;
-  findings: string[];
-}
-
-const MOCK_SESSIONS: Session[] = [
-  { id: "1", topic: "AI Governance", lastActive: "2024-11-19", completion: 85, tags: ["Policy", "Ethics"], category: "Tech", findings: ["Regulatory frameworks emerging globally", "EU AI Act sets precedent for compliance"] },
-  { id: "2", topic: "Fusion Energy", lastActive: "2024-11-06", completion: 72, tags: ["Physics", "Energy"], category: "Science", findings: ["NIF achieved ignition milestone", "Commercial fusion projected by 2035"] },
-  { id: "3", topic: "Quantum Computing", lastActive: "2024-11-18", completion: 91, tags: ["Quantum", "Computing"], category: "Tech", findings: ["Error correction breakthroughs in 2024", "IBM roadmap targets 100k qubits"] },
-  { id: "4", topic: "DeFi Protocols", lastActive: "2024-10-28", completion: 64, tags: ["Finance", "Crypto"], category: "Finance", findings: ["TVL recovery trends across L2s", "RWA tokenization gaining traction"] },
-  { id: "5", topic: "Solid-State Batteries", lastActive: "2024-10-15", completion: 58, tags: ["Materials", "Energy"], category: "Science", findings: ["Toyota targets 2027 production", "Sulfide electrolytes lead in conductivity"] },
-  { id: "6", topic: "Reinforcement Learning", lastActive: "2024-11-01", completion: 79, tags: ["AI", "ML"], category: "Tech", findings: ["RLHF powers modern LLM alignment", "Multi-agent RL shows emergent behavior"] },
-  { id: "7", topic: "Macro Economics 2025", lastActive: "2024-10-20", completion: 45, tags: ["Economics", "Markets"], category: "Finance", findings: ["Rate cuts expected in Q1", "Emerging markets outperforming"] },
-  { id: "8", topic: "CRISPR Therapeutics", lastActive: "2024-11-12", completion: 88, tags: ["Biotech", "Health"], category: "Science", findings: ["First FDA-approved gene therapy", "Sickle cell treatment shows 95% efficacy"] },
-  { id: "9", topic: "Edge Computing", lastActive: "2024-10-08", completion: 52, tags: ["Infrastructure", "IoT"], category: "Tech", findings: ["5G enables real-time inference at edge", "AWS Wavelength expanding regions"] },
-  { id: "10", topic: "Carbon Markets", lastActive: "2024-10-30", completion: 67, tags: ["Climate", "Finance"], category: "Finance", findings: ["EU ETS prices stabilizing around €80", "Voluntary carbon market growing 30% YoY"] },
-];
-
-const CATEGORIES = ["All", "Tech", "Science", "Finance"];
+import { toast } from "sonner";
 
 const History = () => {
   const [search, setSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState("All");
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
+  const [selectedSession, setSelectedSession] = useState<ResearchResponse | null>(null);
+  const [selectedSessionDetail, setSelectedSessionDetail] = useState<SessionDetail | null>(null);
+  const [isFetchingDetail, setIsFetchingDetail] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const queryClient = useQueryClient();
+  const debouncedSearch = useMemo(() => search.trim(), [search]);
+  const dotClass = (state: "online" | "degraded" | "offline") =>
+    state === "online" ? "bg-emerald-400" : state === "degraded" ? "bg-amber-400" : "bg-red-400";
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
-  const filtered = useMemo(() => {
-    return MOCK_SESSIONS.filter((s) => {
-      const matchesCategory = activeCategory === "All" || s.category === activeCategory;
-      const matchesSearch =
-        !search ||
-        s.topic.toLowerCase().includes(search.toLowerCase()) ||
-        s.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
-      return matchesCategory && matchesSearch;
-    });
-  }, [search, activeCategory]);
+  const { data: categories = [] } = useQuery({
+    queryKey: ["researchCategories"],
+    queryFn: () => api.getHistoryCategories(),
+    staleTime: 60_000,
+  });
+  const { data: providerHealth, isError: providerHealthError } = useQuery({
+    queryKey: ["providerHealth"],
+    queryFn: api.getProviderHealth,
+    refetchInterval: 15000,
+    retry: 0,
+  });
+
+  const { data: paged, isLoading, refetch } = useQuery({
+    queryKey: ["researchHistory", selectedCategories, debouncedSearch, page],
+    queryFn: () =>
+      api.getResearchHistoryPaged({
+        categories: selectedCategories,
+        search: debouncedSearch,
+        page,
+        limit: 12,
+      }),
+    staleTime: 30_000,
+  });
+
+  const filtered = paged?.items ?? [];
+  const totalPages = paged?.totalPages ?? 1;
+  const total = paged?.total ?? 0;
+  const dynamicCategories = useMemo(() => categories.slice(0, 20), [categories]);
+  const providerStatus = useMemo(() => {
+    if (providerHealthError) {
+      return {
+        backend: "offline" as const,
+        llm: "offline" as const,
+        airtable: "offline" as const,
+        note: "Backend is unreachable.",
+      };
+    }
+    const llmIssue = providerHealth?.llm?.issue;
+    const airtableIssue = providerHealth?.airtable?.issue;
+    return {
+      backend: "online" as const,
+      llm: llmIssue ? ("degraded" as const) : providerHealth?.llm?.configured ? ("online" as const) : ("offline" as const),
+      airtable: airtableIssue ? ("degraded" as const) : providerHealth?.airtable?.configured ? ("online" as const) : ("offline" as const),
+      note: llmIssue?.message || airtableIssue?.message || "",
+    };
+  }, [providerHealth, providerHealthError]);
+
+  const toggleCategory = (cat: string) => {
+    setPage(1);
+    setSelectedCategories((prev) => (prev.includes(cat) ? prev.filter((x) => x !== cat) : [...prev, cat]));
+  };
+
+  const handleOpenSession = async (session: ResearchResponse) => {
+    setSelectedSession(session);
+    setIsFetchingDetail(true);
+    try {
+      const detail = await api.getResearchSession(session.sessionId);
+      setSelectedSessionDetail(detail);
+    } catch {
+      setSelectedSessionDetail(null);
+      toast.error("Failed to load full session details.");
+    } finally {
+      setIsFetchingDetail(false);
+    }
+  };
+
+  const handleFinalize = async (selectedTags: string[]) => {
+    if (!selectedSession || isFinalizing) return;
+    setIsFinalizing(true);
+    try {
+      const finalized = await api.finalizeResearchSession(selectedSession.sessionId, selectedTags);
+      setSelectedSessionDetail((prev) => {
+        if (!prev) return prev;
+        return { ...prev, summary: finalized.summary, tags: finalized.tags };
+      });
+      toast.success("Session finalized.");
+      await queryClient.invalidateQueries({ queryKey: ["researchHistory"] });
+      await queryClient.invalidateQueries({ queryKey: ["researchCategories"] });
+    } catch {
+      toast.error("Failed to finalize session.");
+    } finally {
+      setIsFinalizing(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!selectedSession || isExportingPdf) return;
+    setIsExportingPdf(true);
+    try {
+      await api.exportSessionPdf(selectedSession.sessionId);
+      toast.success("PDF export started.");
+    } catch {
+      toast.error("Failed to export PDF.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    if (isExportingCsv) return;
+    setIsExportingCsv(true);
+    try {
+      await api.exportHistoryCsvFromServer();
+      toast.success("CSV export started.");
+    } catch {
+      api.exportSessionsCsv(filtered);
+      toast.success("CSV exported from local data.");
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
 
   return (
     <div className="min-h-screen pt-14 hero-gradient">
-      <div className="container mx-auto px-6 py-10">
+      <div className="container mx-auto px-4 py-8 sm:px-6">
         {/* Title */}
-        <h1 className="font-display text-2xl font-bold text-foreground mb-6">Research History</h1>
+        <div className="mx-auto mb-5 max-w-5xl text-center">
+          <h1 className="font-display text-2xl font-semibold text-foreground sm:text-3xl">Research History</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Browse, filter, and export your research sessions.</p>
+        </div>
+        <div className="mx-auto mb-3 flex w-full max-w-5xl flex-wrap items-center justify-center gap-2">
+          <button
+            onClick={() => void handleExportCsv()}
+            disabled={filtered.length === 0 || isExportingCsv}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card/70 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-card"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {isExportingCsv ? "Exporting..." : "Export CSV"}
+          </button>
+          <button
+            onClick={() => void refetch()}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card/70 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-card"
+          >
+            Refresh
+          </button>
+        </div>
+        <p className="mx-auto mb-5 max-w-5xl text-center text-xs text-muted-foreground">
+          {selectedCategories.length ? `Filtered by: ${selectedCategories.join(", ")}` : "All categories"} • {total} sessions
+        </p>
+        <div className="mx-auto mb-5 flex w-full max-w-5xl items-center justify-between gap-3 rounded-xl border border-border bg-card/50 px-4 py-3 text-xs text-muted-foreground backdrop-blur-sm">
+          <div className="flex items-center gap-4">
+            <span className="inline-flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${dotClass(providerStatus.backend)}`} />
+              Backend
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${dotClass(providerStatus.llm)}`} />
+              Groq
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${dotClass(providerStatus.airtable)}`} />
+              Airtable
+            </span>
+          </div>
+          <span className="line-clamp-1 text-right">{providerStatus.note || "All providers healthy."}</span>
+        </div>
 
         {/* Filter bar */}
-        <div className="flex flex-wrap items-center gap-3 mb-8">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
+        <div className="mx-auto mb-8 flex w-full max-w-5xl flex-wrap items-center gap-3 rounded-2xl border border-border bg-card/50 p-4 backdrop-blur-sm">
+          <div className="relative min-w-[220px] flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
@@ -63,75 +194,139 @@ const History = () => {
               className="w-full rounded-lg border border-border bg-card pl-9 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
             />
           </div>
-          <div className="flex gap-2">
-            {CATEGORIES.map((cat) => (
+          <div className="flex flex-wrap gap-2">
+            {dynamicCategories.map((cat) => (
               <button
                 key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
-                  activeCategory === cat
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-card border border-border text-muted-foreground hover:text-foreground"
-                }`}
+                onClick={() => toggleCategory(cat)}
+                className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${selectedCategories.includes(cat)
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card border border-border text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {cat}
               </button>
             ))}
+            {selectedCategories.length > 0 && (
+              <button
+                onClick={() => {
+                  setSelectedCategories([]);
+                  setPage(1);
+                }}
+                className="rounded-full px-4 py-1.5 text-xs font-medium bg-card border border-border text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
 
         {/* Grid */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((session, i) => (
-            <motion.button
-              key={session.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.04 }}
-              onClick={() => setSelectedSession(session)}
-              className="group text-left rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-primary/30 hover:glow-accent-sm"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-primary" />
-                  <h3 className="font-display text-sm font-semibold text-foreground">{session.topic}</h3>
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            <p className="text-sm text-muted-foreground">Retrieving sessions from Airtable...</p>
+          </div>
+        ) : (
+          <div className="mx-auto grid w-full max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map((session, i) => (
+              <motion.button
+                key={session.sessionId}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: i * 0.04 }}
+                onClick={() => void handleOpenSession(session)}
+                className="group text-left rounded-2xl border border-border bg-card/80 p-5 transition-all duration-200 hover:border-primary/30 hover:glow-accent-sm"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-primary" />
+                    <h3 className="font-display text-sm font-semibold text-foreground line-clamp-1">
+                      {session.outline.title}
+                    </h3>
+                  </div>
+                  <ProgressRing percent={session.progress ?? 0} size={36} strokeWidth={2.5} />
                 </div>
-                <ProgressRing percent={session.completion} size={36} strokeWidth={2.5} />
-              </div>
 
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
-                <Calendar className="h-3 w-3" />
-                <span>Last Active</span>
-                <span>{session.lastActive}</span>
-              </div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
+                  <Calendar className="h-3 w-3" />
+                  <span>{session.createdAt ? new Date(session.createdAt).toLocaleDateString() : 'Recent'}</span>
+                </div>
 
-              <div className="flex flex-wrap gap-1.5">
-                {session.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            </motion.button>
-          ))}
-        </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {session.outline.subTopics.slice(0, 3).map((tag) => (
+                    <span
+                      key={tag.id}
+                      className="rounded-md bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground"
+                    >
+                      #{tag.title}
+                    </span>
+                  ))}
+                  {session.outline.subTopics.length > 3 && (
+                    <span className="text-[10px] text-muted-foreground">+{session.outline.subTopics.length - 3} more</span>
+                  )}
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        )}
 
-        {filtered.length === 0 && (
+        {!isLoading && filtered.length === 0 && (
           <p className="text-center text-sm text-muted-foreground py-16">No sessions found.</p>
+        )}
+
+        {!isLoading && totalPages > 1 && (
+          <div className="mt-8 flex items-center justify-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <span className="text-xs text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-foreground disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
         )}
       </div>
 
       {/* Summary Modal */}
       <SummaryModal
         open={!!selectedSession}
-        onClose={() => setSelectedSession(null)}
+        onClose={() => {
+          setSelectedSession(null);
+          setSelectedSessionDetail(null);
+        }}
+        onFinalize={handleFinalize}
+        onExportPdf={handleExportPdf}
         session={
-          selectedSession || { topic: "", findings: [], tags: [] }
+          selectedSession ? {
+            topic: selectedSession.outline.title,
+            findings: selectedSessionDetail
+              ? [
+                  selectedSessionDetail.summary || selectedSession.outline.description,
+                  ...selectedSessionDetail.refinements.map((x) => `${x.subtopic}: ${x.insight}`),
+                ]
+              : [selectedSession.outline.description],
+            tags: selectedSessionDetail?.tags?.length
+              ? selectedSessionDetail.tags
+              : selectedSession.outline.subTopics.map((s) => s.title)
+          } : { topic: "", findings: [], tags: [] }
         }
       />
+      {isFetchingDetail && (
+        <div className="fixed bottom-4 right-4 rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+          Loading session details...
+        </div>
+      )}
     </div>
   );
 };

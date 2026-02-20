@@ -1,10 +1,12 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface SummaryModalProps {
   open: boolean;
   onClose: () => void;
+  onFinalize?: (selectedTags: string[]) => Promise<void> | void;
+  onExportPdf?: () => Promise<void> | void;
   session: {
     topic: string;
     findings: string[];
@@ -12,8 +14,12 @@ interface SummaryModalProps {
   };
 }
 
-const SummaryModal = ({ open, onClose, session }: SummaryModalProps) => {
+const SummaryModal = ({ open, onClose, onFinalize, onExportPdf, session }: SummaryModalProps) => {
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set(session.tags));
+
+  useEffect(() => {
+    setSelectedTags(new Set(session.tags));
+  }, [session.tags, session.topic, open]);
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => {
@@ -43,11 +49,11 @@ const SummaryModal = ({ open, onClose, session }: SummaryModalProps) => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 16 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2"
+            className="fixed left-1/2 top-1/2 z-50 w-[min(92vw,44rem)] -translate-x-1/2 -translate-y-1/2 px-2 sm:px-0"
           >
-            <div className="glass-card glow-accent border border-glass-border p-6 space-y-5">
+            <div className="glass-card glow-accent flex max-h-[85vh] flex-col overflow-hidden border border-glass-border p-6">
               {/* Header */}
-              <div className="flex items-start justify-between">
+              <div className="mb-4 flex items-start justify-between">
                 <div>
                   <h2 className="font-display text-lg font-semibold text-foreground">
                     Session Summary
@@ -65,10 +71,11 @@ const SummaryModal = ({ open, onClose, session }: SummaryModalProps) => {
                 </button>
               </div>
 
-              {/* Key Findings */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-foreground">Key Findings</h3>
-                <ul className="space-y-2">
+              <div className="space-y-5 overflow-y-auto pr-1">
+                {/* Key Findings */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-foreground">Key Findings</h3>
+                  <ul className="space-y-2">
                   {session.findings.map((finding, i) => (
                     <motion.li
                       key={i}
@@ -83,36 +90,43 @@ const SummaryModal = ({ open, onClose, session }: SummaryModalProps) => {
                       {finding}
                     </motion.li>
                   ))}
-                </ul>
-              </div>
+                  </ul>
+                </div>
 
-              {/* Generated Tags */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-foreground">Generated Tags</h3>
-                <div className="flex flex-wrap gap-2">
-                  {session.tags.map((tag) => (
-                    <button
-                      key={tag}
-                      onClick={() => toggleTag(tag)}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
-                        selectedTags.has(tag)
-                          ? "bg-primary/20 border-primary/40 text-primary"
-                          : "bg-card border-border text-muted-foreground"
-                      }`}
-                    >
-                      #{tag}
-                    </button>
-                  ))}
+                {/* Generated Tags */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-foreground">Generated Tags</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {session.tags.map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
+                          selectedTags.has(tag)
+                            ? "bg-primary/20 border-primary/40 text-primary"
+                            : "bg-card border-border text-muted-foreground"
+                        }`}
+                      >
+                        #{tag}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-2 border-t border-border">
-                <button className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-                  Save to Library
+              <div className="mt-4 flex gap-3 border-t border-border pt-4">
+                <button
+                  onClick={() => void onFinalize?.(Array.from(selectedTags))}
+                  className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Finalize
                 </button>
-                <button className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-card">
-                  Share Report
+                <button
+                  onClick={() => void onExportPdf?.()}
+                  className="flex-1 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-card"
+                >
+                  Export PDF
                 </button>
               </div>
             </div>

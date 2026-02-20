@@ -16,17 +16,17 @@ const FeatureCard = ({ icon: Icon, title, description, delay = 0 }: FeatureCardP
       whileHover={{ y: -4 }}
       transition={{ duration: 0.5, delay }}
       viewport={{ once: true }}
-      className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 transition-all duration-300 hover:border-primary hover:shadow-lg"
+      className="group relative overflow-hidden rounded-2xl border border-border bg-card/80 p-6 transition-all duration-300 hover:border-primary/70 hover:shadow-lg"
     >
       {/* Gradient overlay on hover */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/0 via-primary/0 to-primary/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-      <div className="relative z-10 flex flex-col items-start gap-4">
+      <div className="relative z-10 flex h-full flex-col items-start gap-4">
         <div className="rounded-lg bg-primary/10 p-3 transition-colors group-hover:bg-primary/20">
           <Icon className="h-6 w-6 text-primary transition-colors group-hover:text-primary" />
         </div>
 
-        <div>
+        <div className="flex-1">
           <h3 className="text-lg font-semibold text-foreground transition-colors group-hover:text-primary">
             {title}
           </h3>

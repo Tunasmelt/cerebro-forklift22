@@ -12,6 +12,7 @@ const AnimatedBackground = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animationRef = useRef<number>();
+  const isDarkRef = useRef<boolean>(true);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -19,6 +20,13 @@ const AnimatedBackground = () => {
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    const updateThemeState = () => {
+      isDarkRef.current = document.documentElement.classList.contains("dark");
+    };
+    updateThemeState();
+    const observer = new MutationObserver(updateThemeState);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
     // Set canvas size
     const resizeCanvas = () => {
@@ -47,8 +55,16 @@ const AnimatedBackground = () => {
     const connectionDistance = 150;
 
     const animate = () => {
+      const isDark = isDarkRef.current;
+      const clearColor = isDark ? "rgba(10, 25, 47, 0.1)" : "rgba(241, 245, 249, 0.22)";
+      const pointCore = isDark ? "rgba(100, 255, 218, 1)" : "rgba(37, 99, 235, 0.6)";
+      const pointGlowA = isDark ? "rgba(100, 255, 218, 0.8)" : "rgba(37, 99, 235, 0.28)";
+      const pointGlowB = isDark ? "rgba(100, 255, 218, 0.4)" : "rgba(37, 99, 235, 0.14)";
+      const lineA = isDark ? "100, 255, 218" : "37, 99, 235";
+      const lineB = isDark ? "0, 217, 255" : "59, 130, 246";
+
       // Clear canvas with semi-transparent overlay for trail effect
-      ctx.fillStyle = "rgba(10, 25, 47, 0.1)";
+      ctx.fillStyle = clearColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Update and draw particles
@@ -76,9 +92,9 @@ const AnimatedBackground = () => {
           particle.y,
           particle.radius * 3
         );
-        gradient.addColorStop(0, "rgba(100, 255, 218, 0.8)");
-        gradient.addColorStop(0.4, "rgba(100, 255, 218, 0.4)");
-        gradient.addColorStop(1, "rgba(100, 255, 218, 0)");
+        gradient.addColorStop(0, pointGlowA);
+        gradient.addColorStop(0.4, pointGlowB);
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
 
         ctx.fillStyle = gradient;
         ctx.fillRect(
@@ -89,7 +105,7 @@ const AnimatedBackground = () => {
         );
 
         // Draw particle core
-        ctx.fillStyle = "rgba(100, 255, 218, 1)";
+        ctx.fillStyle = pointCore;
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
         ctx.fill();
@@ -112,9 +128,9 @@ const AnimatedBackground = () => {
               particles[j].x,
               particles[j].y
             );
-            lineGradient.addColorStop(0, `rgba(100, 255, 218, ${opacity})`);
-            lineGradient.addColorStop(0.5, `rgba(0, 217, 255, ${opacity * 0.6})`);
-            lineGradient.addColorStop(1, `rgba(100, 255, 218, ${opacity})`);
+            lineGradient.addColorStop(0, `rgba(${lineA}, ${opacity})`);
+            lineGradient.addColorStop(0.5, `rgba(${lineB}, ${opacity * 0.6})`);
+            lineGradient.addColorStop(1, `rgba(${lineA}, ${opacity})`);
 
             ctx.strokeStyle = lineGradient;
             ctx.lineWidth = 1;
@@ -132,6 +148,7 @@ const AnimatedBackground = () => {
     animate();
 
     return () => {
+      observer.disconnect();
       window.removeEventListener("resize", resizeCanvas);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
@@ -142,7 +159,12 @@ const AnimatedBackground = () => {
   return (
     <>
       {/* Base gradient background */}
-      <div className="fixed inset-0 pointer-events-none -z-10 bg-gradient-to-br from-[#0A192F] via-[#112240] to-[#0A1929]" />
+      <div
+        className="fixed inset-0 pointer-events-none -z-10"
+        style={{
+          background: "linear-gradient(135deg, hsl(var(--hero-gradient-start)), hsl(var(--hero-gradient-end)))",
+        }}
+      />
 
       {/* Canvas for animated particles */}
       <canvas

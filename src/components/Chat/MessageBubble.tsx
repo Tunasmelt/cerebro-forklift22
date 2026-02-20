@@ -40,10 +40,10 @@ const MessageBubble = ({ message, onSubtopicClick }: MessageBubbleProps) => {
           {isAI ? "Cerebro" : "You"}
         </span>
         <div
-          className={`rounded-lg px-4 py-3 text-sm leading-relaxed ${
+          className={`max-w-3xl rounded-xl px-4 py-3 text-sm leading-relaxed ${
             isAI
               ? "bg-card border border-border text-foreground"
-              : "bg-accent text-accent-foreground"
+              : "bg-primary/15 border border-primary/20 text-foreground"
           }`}
         >
           {message.content}

@@ -1,0 +1,8 @@
+fastapi==0.129.0
+uvicorn==0.41.0
+python-dotenv==1.2.1
+pydantic==2.12.5
+pyairtable==3.3.0
+slowapi==0.1.9
+reportlab==4.4.4
+groq==0.31.1

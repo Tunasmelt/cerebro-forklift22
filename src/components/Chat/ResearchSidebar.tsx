@@ -1,10 +1,21 @@
 import { Database, Tag, Wifi } from "lucide-react";
 
+type ProviderState = "online" | "degraded" | "offline";
+
+interface ProviderStatus {
+  backend: ProviderState;
+  llm: ProviderState;
+  llmLabel?: string;
+  airtable: ProviderState;
+  note?: string;
+}
+
 interface ResearchSidebarProps {
   currentTopic: string;
   summary: string;
   tags: string[];
   syncStatus?: "synced" | "syncing" | "offline";
+  providerStatus?: ProviderStatus;
 }
 
 const ResearchSidebar = ({
@@ -12,9 +23,17 @@ const ResearchSidebar = ({
   summary,
   tags,
   syncStatus = "synced",
+  providerStatus,
 }: ResearchSidebarProps) => {
+  const dotClass = (state: ProviderState) =>
+    state === "online"
+      ? "bg-emerald-400"
+      : state === "degraded"
+      ? "bg-amber-400"
+      : "bg-red-400";
+
   return (
-    <div className="glass-card glow-accent-sm p-5 space-y-5">
+    <div className="glass-card glow-accent-sm space-y-5 rounded-2xl p-5">
       <h3 className="font-display text-sm font-semibold text-foreground flex items-center gap-2">
         <Database className="h-4 w-4 text-primary" />
         Research Summary
@@ -27,7 +46,7 @@ const ResearchSidebar = ({
 
       <div className="space-y-1">
         <span className="text-xs text-muted-foreground">Key Summary:</span>
-        <p className="text-xs leading-relaxed text-muted-foreground">{summary}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground line-clamp-6">{summary}</p>
       </div>
 
       <div className="space-y-2">
@@ -45,6 +64,29 @@ const ResearchSidebar = ({
           ))}
         </div>
       </div>
+
+      {providerStatus && (
+        <div className="space-y-2 rounded-xl border border-border/80 bg-background/50 p-3">
+          <p className="text-xs font-medium text-foreground">Provider Status</p>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${dotClass(providerStatus.backend)}`} />
+              Backend
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${dotClass(providerStatus.llm)}`} />
+              {providerStatus.llmLabel || "LLM"}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${dotClass(providerStatus.airtable)}`} />
+              Airtable
+            </div>
+          </div>
+          {providerStatus.note ? (
+            <p className="text-[11px] leading-relaxed text-muted-foreground">{providerStatus.note}</p>
+          ) : null}
+        </div>
+      )}
 
       <div className="flex items-center gap-2 border-t border-border pt-4">
         <Wifi
