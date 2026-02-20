@@ -36,6 +36,8 @@ DEFAULT_USER_ID = os.getenv("API_DEFAULT_USER_ID", "local-dev")
 TOKENS_RAW = os.getenv("API_TOKENS_JSON", "")
 ALLOWED_ORIGINS_RAW = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 ENABLE_FALLBACK_ON_QUOTA = os.getenv("ENABLE_FALLBACK_ON_QUOTA", "true").lower() == "true"
+PORT = int(os.getenv("PORT", "8000"))
+HOST = os.getenv("HOST", "0.0.0.0")
 
 groq_client = Groq(api_key=GROQ_API_KEY) if (Groq and GROQ_API_KEY) else None  # type: ignore[operator]
 AUTH_TOKENS: Dict[str, str] = json.loads(TOKENS_RAW) if TOKENS_RAW.strip() else {}
@@ -1036,6 +1038,21 @@ async def export_history_csv(request: Request):
 async def health_check():
     return {"status": "healthy"}
 
+@app.get("/health/ready")
+async def readiness_check(response: Response):
+    issues: List[str] = []
+    if not GROQ_API_KEY:
+        issues.append("Missing GROQ_API_KEY")
+    if not AIRTABLE_API_KEY:
+        issues.append("Missing AIRTABLE_API_KEY")
+    if not AIRTABLE_BASE_ID:
+        issues.append("Missing AIRTABLE_BASE_ID")
+
+    if issues:
+        response.status_code = 503
+        return {"status": "not_ready", "issues": issues}
+    return {"status": "ready"}
+
 @app.get("/health/providers")
 async def provider_health():
     return {
@@ -1076,4 +1093,4 @@ if FRONTEND_DIST.exists():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=HOST, port=PORT)

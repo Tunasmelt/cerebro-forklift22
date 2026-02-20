@@ -38,7 +38,16 @@ pip install -r requirements.txt
 
 ### 3. Configure environment
 
-Create/update `.env` with the variables your backend and workflow integrations require.
+Copy `.env.example` to `.env` and fill required variables:
+
+```bash
+cp .env.example .env
+```
+
+Required at minimum for readiness:
+- `GROQ_API_KEY`
+- `AIRTABLE_API_KEY`
+- `AIRTABLE_BASE_ID`
 
 ## Run
 
@@ -60,15 +69,44 @@ npm run backend:dev
 npm run dev:stack
 ```
 
+### Production-style local run
+
+```bash
+npm run start
+```
+
+Backend health checks:
+- `GET /health`
+- `GET /health/ready` (returns `503` until required env vars are set)
+
 ## Scripts
 
 - `npm run dev` - Start Vite dev server
 - `npm run backend:dev` - Start FastAPI backend via PowerShell script
+- `npm run backend:start` - Start FastAPI backend for production-style runtime
 - `npm run dev:stack` - Run frontend and backend together
-- `npm run build` - TypeScript build + Vite production build
+- `npm run build` - TypeScript build + Vite production build (`dist/`)
 - `npm run preview` - Preview production frontend build
 - `npm run lint` - Run ESLint
 - `npm run test` - Run Vitest
+
+## Deployment
+
+### Docker
+
+Build:
+
+```bash
+docker build -t cerebro:latest .
+```
+
+Run:
+
+```bash
+docker run --rm -p 8000:8000 --env-file .env cerebro:latest
+```
+
+The container serves the React build from `dist/` through FastAPI.
 
 ## Project Structure
 

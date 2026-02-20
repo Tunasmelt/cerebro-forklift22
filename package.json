@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "backend:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\backend_dev.ps1",
+    "backend:start": "python main.py",
     "dev:stack": "concurrently \"npm:backend:dev\" \"vite\"",
-    "start": "npm run build && npm run backend:dev",
+    "start": "npm run build && npm run backend:start",
     "build": "tsc -b && vite build",
     "lint": "eslint . --report-unused-disable-directives",
     "preview": "vite preview",
